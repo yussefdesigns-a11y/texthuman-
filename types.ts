@@ -75,9 +75,3 @@ export interface SavedRecord {
   humanized?: HumanizedResult;
   tone?: string;
 }
-
-export interface User {
-  name: string;
-  email: string;
-  avatar: string;
-}
