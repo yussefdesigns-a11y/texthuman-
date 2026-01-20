@@ -2,8 +2,13 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult, HumanizedResult } from "../types";
 
+// دالة مساعدة لإنشاء العميل لضمان استخدام أحدث مفتاح API دائماً
+const getAIClient = () => {
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
+};
+
 export const analyzeMessage = async (text: string): Promise<AnalysisResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAIClient();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Deeply analyze the following text for AI vs Human markers. 
@@ -89,7 +94,7 @@ export const analyzeMessage = async (text: string): Promise<AnalysisResult> => {
 };
 
 export const humanizeMessage = async (text: string, tone: string): Promise<HumanizedResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  const ai = getAIClient();
   const response = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `HUMANIZATION PROTOCOL: Rewrite the following text to sound authentically human, professional, and engaging. 
