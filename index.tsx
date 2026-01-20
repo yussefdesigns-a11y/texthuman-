@@ -8,9 +8,15 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+try {
+  const root = ReactDOM.createRoot(rootElement);
+  root.render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+  // Signal to the HTML that the app has successfully initialized
+  document.body.classList.add('app-loaded');
+} catch (error) {
+  console.error("Failed to initialize React application:", error);
+}
