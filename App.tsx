@@ -1,14 +1,50 @@
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { AppView, AnalysisResult, HumanizedResult, SavedRecord } from './types';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { AppView, AnalysisResult, HumanizedResult, SavedRecord, Protocol } from './types';
 import AnalysisDashboard from './components/AnalysisDashboard';
 import HumanizeResults from './components/HumanizeResults';
 import HistoryView from './components/HistoryView';
 import { analyzeMessage, humanizeMessage } from './services/geminiService';
 
+const INITIAL_PROTOCOLS: Protocol[] = [
+  {
+    id: 'first_contact',
+    title: 'First Contact',
+    description: 'Execute your very first linguistic analysis to initialize core subroutines.',
+    completed: false,
+    actionHint: 'Analyze any text',
+    icon: 'radar'
+  },
+  {
+    id: 'deep_scrutiny',
+    title: 'Deep Scrutiny',
+    description: 'Process a complex document (PDF or DOCX) to test extraction limits.',
+    completed: false,
+    actionHint: 'Upload a file',
+    icon: 'description'
+  },
+  {
+    id: 'ghost_in_machine',
+    title: 'Ghost in the Machine',
+    description: 'Take a result with high AI likelihood and transform it through the humanizer.',
+    completed: false,
+    actionHint: 'Humanize a detection',
+    icon: 'auto_fix_high'
+  },
+  {
+    id: 'memory_vault',
+    title: 'Memory Vault',
+    description: 'Revisit a past analysis from your History logs to ensure data integrity.',
+    completed: false,
+    actionHint: 'Open a history record',
+    icon: 'history'
+  }
+];
+
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>(AppView.ANALYZE);
   const [history, setHistory] = useState<SavedRecord[]>([]);
+  const [protocols, setProtocols] = useState<Protocol[]>(INITIAL_PROTOCOLS);
   
   const [inputText, setInputText] = useState<string>('');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
@@ -16,22 +52,36 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [humanizing, setHumanizing] = useState<boolean>(false);
 
-  // Load history from localStorage
+  // Persistence
   useEffect(() => {
     const savedHistory = localStorage.getItem('textguard_history');
+    const savedProtocols = localStorage.getItem('textguard_protocols');
+    
     if (savedHistory) {
-      try {
-        setHistory(JSON.parse(savedHistory));
-      } catch (e) {
-        console.error("Failed to parse history", e);
-      }
+      try { setHistory(JSON.parse(savedHistory)); } catch (e) { console.error(e); }
+    }
+    if (savedProtocols) {
+      try { setProtocols(JSON.parse(savedProtocols)); } catch (e) { console.error(e); }
     }
   }, []);
 
-  // Save history when it changes
   useEffect(() => {
     localStorage.setItem('textguard_history', JSON.stringify(history));
   }, [history]);
+
+  useEffect(() => {
+    localStorage.setItem('textguard_protocols', JSON.stringify(protocols));
+  }, [protocols]);
+
+  const completeProtocol = (id: string) => {
+    setProtocols(prev => prev.map(p => p.id === id ? { ...p, completed: true } : p));
+  };
+
+  const nextProtocol = useMemo(() => {
+    return protocols.find(p => !p.completed) || null;
+  }, [protocols]);
+
+  const allCompleted = useMemo(() => protocols.every(p => p.completed), [protocols]);
 
   const saveToHistory = (analysis: AnalysisResult, humanized?: HumanizedResult, tone?: string) => {
     const newRecord: SavedRecord = {
@@ -42,15 +92,10 @@ const App: React.FC = () => {
       humanized,
       tone
     };
-    
-    setHistory(prev => {
-      // Avoid duplicate saves for the same state if needed, 
-      // but for simplicity we'll just push.
-      return [newRecord, ...prev];
-    });
+    setHistory(prev => [newRecord, ...prev]);
   };
 
-  const handleAnalyze = useCallback(async () => {
+  const handleAnalyze = useCallback(async (isUpload: boolean = false) => {
     if (!inputText.trim()) return;
 
     setLoading(true);
@@ -58,6 +103,11 @@ const App: React.FC = () => {
       const result = await analyzeMessage(inputText);
       setAnalysisResult(result);
       saveToHistory(result);
+      
+      // Mission tracking
+      completeProtocol('first_contact');
+      if (isUpload) completeProtocol('deep_scrutiny');
+      
     } catch (error) {
       console.error('Analysis failed:', error);
       alert('Failed to analyze text. Please try again.');
@@ -76,6 +126,9 @@ const App: React.FC = () => {
       setHumanizedResult(result);
       if (analysisResult) {
         saveToHistory(analysisResult, result, tone);
+        if (analysisResult.aiPercentage > 40) {
+          completeProtocol('ghost_in_machine');
+        }
       }
     } catch (error) {
       console.error('Humanization failed:', error);
@@ -89,6 +142,7 @@ const App: React.FC = () => {
     setInputText(record.originalText);
     setAnalysisResult(record.analysis);
     setHumanizedResult(record.humanized || null);
+    completeProtocol('memory_vault');
     if (record.humanized) {
       setView(AppView.RESULTS);
     } else {
@@ -97,13 +151,11 @@ const App: React.FC = () => {
   };
 
   const handleDeleteRecord = (id: string) => {
-    const newHistory = history.filter(r => r.id !== id);
-    setHistory(newHistory);
+    setHistory(prev => prev.filter(r => r.id !== id));
   };
 
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 py-3">
         <div className="max-w-[1440px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3 text-slate-900 cursor-pointer" onClick={() => setView(AppView.ANALYZE)}>
@@ -129,14 +181,13 @@ const App: React.FC = () => {
             <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
             
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Free Mode</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Master Node</span>
               <div className="size-2 rounded-full bg-green-500"></div>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 w-full max-w-[1440px] mx-auto p-4 md:p-6 lg:p-8 h-[calc(100vh-65px)] overflow-hidden">
         {view === AppView.ANALYZE && (
           <AnalysisDashboard
@@ -146,6 +197,8 @@ const App: React.FC = () => {
             result={analysisResult}
             loading={loading}
             onHumanize={() => handleHumanize()}
+            currentProtocol={nextProtocol}
+            allCompleted={allCompleted}
           />
         )}
         

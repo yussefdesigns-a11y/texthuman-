@@ -5,6 +5,15 @@ export enum AppView {
   HISTORY = 'HISTORY'
 }
 
+export interface Protocol {
+  id: string;
+  title: string;
+  description: string;
+  completed: boolean;
+  actionHint: string;
+  icon: string;
+}
+
 export interface AnalysisMetric {
   label: string;
   value: number; // 0 to 100
